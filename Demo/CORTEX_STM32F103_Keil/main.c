@@ -142,23 +142,49 @@ int fputc( int ch, FILE *f );
 extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
+TaskHandle_t xHandleTask1;
 
-
-/*-----------------------------------------------------------*/
+static int task1flagrun = 0;
+static int task2flagrun = 0;
+static int task3flagrun = 0;
 
 void Task1Function(void * param)
 {
+	volatile char buf[500];
+	int i;
+	
 	while(1)
 	{
+		task1flagrun = 1;
+		task2flagrun = 0;
+		task3flagrun = 0;
 		printf("1");
+		for (i = 0; i < 500; i++)
+		{
+			buf[i] = 0;
+		}
 	}
 }
 
 void Task2Function(void * param)
 {
+	int i = 0;
+	
 	while(1)
 	{
+		task1flagrun = 0;
+		task2flagrun = 1;
+		task3flagrun = 0;
 		printf("2");
+		if(i++ == 100)
+		{
+			//vTaskDelete(xHandleTask1);	//delete task1
+		}
+		
+		if(i == 200)
+		{
+			//vTaskDelete(NULL);	//delete self
+		}
 	}
 }
 
@@ -166,10 +192,21 @@ void Task3Function(void * param)
 {
 	while(1)
 	{
+		task1flagrun = 0;
+		task2flagrun = 0;
+		task3flagrun = 1;
 		printf("3");
 	}
 }
 
+void TaskGenericFunction(void * param)
+{
+	int val = (int)param;
+	while(1)
+	{
+		printf("%d",val);
+	}
+}
 
 StackType_t xTask3Stack[100];
 StaticTask_t xTask3TCB;
@@ -194,7 +231,6 @@ void vApplicationGetIdleTaskMemory( StaticTask_t ** ppxIdleTaskTCBBuffer,
 
 int main( void )
 {
-	TaskHandle_t xHandleTask1;
 
 #ifdef DEBUG
   debug();
@@ -202,11 +238,17 @@ int main( void )
 
 	prvSetupHardware();
 
-	printf("Hello World!");
+	printf("Hello World!\r\n");
 
-	xTaskCreate(Task1Function,"Task1", 100, NULL, 1, &xHandleTask1);
+	xTaskCreate(Task1Function,"Task1", 100, NULL, 1, &xHandleTask1);	//动态内存创建任务
 	xTaskCreate(Task2Function,"Task2", 100, NULL, 1, NULL);
 	xTaskCreateStatic(Task3Function,"Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);	//可以传入栈
+
+	/*同一个函数可以创建不同的任务
+	* 栈不一样，运行的时候互不影响
+	*/
+	xTaskCreate(TaskGenericFunction,"Task4", 100, (void *)4, 1, NULL);
+	xTaskCreate(TaskGenericFunction,"Task5", 100, (void *)5, 1, NULL);
 	
 	/* Start the scheduler. */
 	vTaskStartScheduler();
