@@ -98,31 +98,32 @@ static int task1flagrun = 0;
 static int task2flagrun = 0;
 static int task3flagrun = 0;
 
+static int rands[] = {3, 56, 23, 5, 99};
+
 void Task1Function(void * param)
 {
 	TickType_t tStart = xTaskGetTickCount();
-	TickType_t t;
-	int flag = 0;
+	int i = 0;
+	int j = 0;
 	
 	while(1)
 	{
-		t = xTaskGetTickCount();
 		
 		task1flagrun = 1;
 		task2flagrun = 0;
 		task3flagrun = 0;
-		printf("1");
 
-		if (!flag && (t > tStart + 10))
-		{
-			vTaskSuspend(xHandleTask3);
-			flag = 1;
-		}
+		for (i = 0; i < rands[j]; i++)
+			printf("1");
 
-		if (t > tStart + 20)
-		{
-			vTaskResume(xHandleTask3);
-		}
+		j++;
+		if (j == 5)
+			j = 0;
+#if 0
+		vTaskDelay(20);
+#else
+		vTaskDelayUntil(&tStart, 20);
+#endif
 	}
 }
 
@@ -134,8 +135,6 @@ void Task2Function(void * param)
 		task2flagrun = 1;
 		task3flagrun = 0;
 		printf("2");
-
-		vTaskDelay(10);
 	}
 }
 
@@ -182,9 +181,9 @@ int main( void )
 
 	printf("Hello World!\r\n");
 
-	xTaskCreate(Task1Function,"Task1", 100, NULL, 1, &xHandleTask1);	//动态内存创建任务
-	xTaskCreate(Task2Function,"Task2", 100, NULL, 1, NULL);
-	xHandleTask3 = xTaskCreateStatic(Task3Function,"Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);	//可以传入栈
+	xTaskCreate(Task1Function, "Task1", 100, NULL, 2, &xHandleTask1);	//动态内存创建任务
+	xTaskCreate(Task2Function, "Task2", 100, NULL, 1, NULL);
+	xHandleTask3 = xTaskCreateStatic(Task3Function, "Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);	//可以传入栈
 
 	/* Start the scheduler. */
 	vTaskStartScheduler();
