@@ -68,59 +68,8 @@
 /* Library includes. */
 #include "stm32f10x_it.h"
 
-/* Demo app includes. */
-#include "lcd.h"
-#include "LCD_Message.h"
-#include "BlockQ.h"
-#include "death.h"
-#include "integer.h"
-#include "blocktim.h"
-#include "partest.h"
-#include "semtest.h"
-#include "PollQ.h"
-#include "flash.h"
-#include "comtest2.h"
 #include "serial.h"
 
-/* Task priorities. */
-#define mainQUEUE_POLL_PRIORITY				( tskIDLE_PRIORITY + 2 )
-#define mainCHECK_TASK_PRIORITY				( tskIDLE_PRIORITY + 3 )
-#define mainSEM_TEST_PRIORITY				( tskIDLE_PRIORITY + 1 )
-#define mainBLOCK_Q_PRIORITY				( tskIDLE_PRIORITY + 2 )
-#define mainCREATOR_TASK_PRIORITY           ( tskIDLE_PRIORITY + 3 )
-#define mainFLASH_TASK_PRIORITY				( tskIDLE_PRIORITY + 1 )
-#define mainCOM_TEST_PRIORITY				( tskIDLE_PRIORITY + 1 )
-#define mainINTEGER_TASK_PRIORITY           ( tskIDLE_PRIORITY )
-
-/* Constants related to the LCD. */
-#define mainMAX_LINE						( 240 )
-#define mainROW_INCREMENT					( 24 )
-#define mainMAX_COLUMN						( 20 )
-#define mainCOLUMN_START					( 319 )
-#define mainCOLUMN_INCREMENT 				( 16 )
-
-/* The maximum number of message that can be waiting for display at any one
-time. */
-#define mainLCD_QUEUE_SIZE					( 3 )
-
-/* The check task uses the sprintf function so requires a little more stack. */
-#define mainCHECK_TASK_STACK_SIZE			( configMINIMAL_STACK_SIZE + 50 )
-
-/* Dimensions the buffer into which the jitter time is written. */
-#define mainMAX_MSG_LEN						25
-
-/* The time between cycles of the 'check' task. */
-#define mainCHECK_DELAY						( ( TickType_t ) 5000 / portTICK_PERIOD_MS )
-
-/* The number of nano seconds between each processor clock. */
-#define mainNS_PER_CLOCK ( ( unsigned long ) ( ( 1.0 / ( double ) configCPU_CLOCK_HZ ) * 1000000000.0 ) )
-
-/* Baud rate used by the comtest tasks. */
-#define mainCOM_TEST_BAUD_RATE		( 115200 )
-
-/* The LED used by the comtest tasks. See the comtest.c file for more
-information. */
-#define mainCOM_TEST_LED			( 3 )
 
 /*-----------------------------------------------------------*/
 
@@ -143,6 +92,7 @@ extern void vSetupTimerTest( void );
 
 /*-----------------------------------------------------------*/
 TaskHandle_t xHandleTask1;
+TaskHandle_t xHandleTask3;
 
 static int task1flagrun = 0;
 static int task2flagrun = 0;
@@ -150,41 +100,42 @@ static int task3flagrun = 0;
 
 void Task1Function(void * param)
 {
-	volatile char buf[500];
-	int i;
+	TickType_t tStart = xTaskGetTickCount();
+	TickType_t t;
+	int flag = 0;
 	
 	while(1)
 	{
+		t = xTaskGetTickCount();
+		
 		task1flagrun = 1;
 		task2flagrun = 0;
 		task3flagrun = 0;
 		printf("1");
-		for (i = 0; i < 500; i++)
+
+		if (!flag && (t > tStart + 10))
 		{
-			buf[i] = 0;
+			vTaskSuspend(xHandleTask3);
+			flag = 1;
+		}
+
+		if (t > tStart + 20)
+		{
+			vTaskResume(xHandleTask3);
 		}
 	}
 }
 
 void Task2Function(void * param)
 {
-	int i = 0;
-	
-	while(1)
+	while (1)
 	{
 		task1flagrun = 0;
 		task2flagrun = 1;
 		task3flagrun = 0;
 		printf("2");
-		if(i++ == 100)
-		{
-			//vTaskDelete(xHandleTask1);	//delete task1
-		}
-		
-		if(i == 200)
-		{
-			//vTaskDelete(NULL);	//delete self
-		}
+
+		vTaskDelay(10);
 	}
 }
 
@@ -199,17 +150,8 @@ void Task3Function(void * param)
 	}
 }
 
-void TaskGenericFunction(void * param)
-{
-	int val = (int)param;
-	while(1)
-	{
-		printf("%d",val);
-	}
-}
 
-StackType_t xTask3Stack[100];
-StaticTask_t xTask3TCB;
+/*-----------------------------------------------------------*/
 
 StackType_t xTask3Stack[100];
 StaticTask_t xTask3TCB;
@@ -242,14 +184,8 @@ int main( void )
 
 	xTaskCreate(Task1Function,"Task1", 100, NULL, 1, &xHandleTask1);	//动态内存创建任务
 	xTaskCreate(Task2Function,"Task2", 100, NULL, 1, NULL);
-	xTaskCreateStatic(Task3Function,"Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);	//可以传入栈
+	xHandleTask3 = xTaskCreateStatic(Task3Function,"Task3", 100, NULL, 1, xTask3Stack, &xTask3TCB);	//可以传入栈
 
-	/*同一个函数可以创建不同的任务
-	* 栈不一样，运行的时候互不影响
-	*/
-	xTaskCreate(TaskGenericFunction,"Task4", 100, (void *)4, 1, NULL);
-	xTaskCreate(TaskGenericFunction,"Task5", 100, (void *)5, 1, NULL);
-	
 	/* Start the scheduler. */
 	vTaskStartScheduler();
 
